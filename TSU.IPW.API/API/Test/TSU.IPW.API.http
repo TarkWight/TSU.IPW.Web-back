@@ -1,0 +1,6 @@
+@TSU.IPW.API_HostAddress = http://localhost:5138
+
+GET {{TSU.IPW.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
