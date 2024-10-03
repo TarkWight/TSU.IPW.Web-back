@@ -1,6 +1,5 @@
 ﻿using TSU.IPW.API.Data.Repositories;
 using TSU.IPW.API.Domain.Entities;
-using TSU.IPW.API.Domain.Interfaces;
 
 public class TaskService : ITaskService
 {
@@ -26,14 +25,6 @@ public class TaskService : ITaskService
         await _taskRepository.AddTaskAsync(taskItem);
     }
 
-    public async Task AddTasksAsync(List<TaskItem> taskItems)
-    {
-        foreach (var task in taskItems)
-        {
-            await _taskRepository.AddTaskAsync(task);
-        }
-    }
-
     public async Task UpdateTaskAsync(TaskItem taskItem)
     {
         await _taskRepository.UpdateTaskAsync(taskItem);
@@ -47,20 +38,24 @@ public class TaskService : ITaskService
     public async Task MarkTaskCompleteAsync(int id)
     {
         var task = await _taskRepository.GetTaskByIdAsync(id);
-        if (task != null)
+        if (task == null)
         {
-            task.IsCompleted = true;
-            await _taskRepository.UpdateTaskAsync(task);
+            throw new Exception("Task not found");
         }
+
+        task.Completed = true;
+        await _taskRepository.UpdateTaskAsync(task);
     }
 
     public async Task MarkTaskIncompleteAsync(int id)
     {
         var task = await _taskRepository.GetTaskByIdAsync(id);
-        if (task != null)
+        if (task == null)
         {
-            task.IsCompleted = false;
-            await _taskRepository.UpdateTaskAsync(task);
+            throw new Exception("Task not found");
         }
+
+        task.Completed = false;
+        await _taskRepository.UpdateTaskAsync(task);
     }
 }

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using TSU.IPW.API.Domain.Interfaces;
 using TSU.IPW.API.Data.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);

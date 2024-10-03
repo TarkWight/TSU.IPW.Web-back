@@ -10,6 +10,9 @@ namespace TSU.IPW.API.Data.Repositories
         Task AddTaskAsync(TaskItem taskItem);
         Task UpdateTaskAsync(TaskItem taskItem);
         Task DeleteTaskAsync(int id);
+
+        Task SaveTasksAsync(List<TaskItem> tasks);
+        Task<List<TaskItem>> LoadTasksAsync();
     }
 
     public class TaskRepository : ITaskRepository
@@ -51,6 +54,17 @@ namespace TSU.IPW.API.Data.Repositories
                 _context.TaskItems.Remove(task);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        public async Task SaveTasksAsync(List<TaskItem> tasks)
+        {
+            _context.TaskItems.AddRange(tasks);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<List<TaskItem>> LoadTasksAsync()
+        {
+            return await _context.TaskItems.ToListAsync();
         }
     }
 

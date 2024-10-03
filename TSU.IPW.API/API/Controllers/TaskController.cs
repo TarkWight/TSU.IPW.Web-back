@@ -1,11 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TSU.IPW.API.Domain.Entities;
-using TSU.IPW.API.Domain.Interfaces;
 using Swashbuckle.AspNetCore.Annotations;
+using TSU.IPW.API.Domain.DTOs;
+using TSU.IPW.API.Domain.Entities;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/tasks")]
 public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
@@ -18,19 +17,25 @@ public class TasksController : ControllerBase
     [HttpGet(Name = "GetAllTasks")]
     [SwaggerOperation(Summary = "Получить все задачи", Description = "Возвращает список всех задач.")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
+    public async Task<ActionResult<IEnumerable<TaskDto>>> GetAllTasks()
     {
         var tasks = await _taskService.GetAllTasksAsync();
-        return Ok(tasks);
+        var taskDtos = tasks.Select(t => new TaskDto
+        {
+            Id = t.Id,
+            Title = t.Title,
+            Description = t.Description,
+            Completed = t.Completed
+        }).ToList();
+
+        return Ok(taskDtos);
     }
 
-    [HttpGet("{id}", Name = "GetTaskById")]
-    [SwaggerOperation(Summary = "Получить задачу по Id", Description = "Возвращает задачу по указанному Id.")]
+    [HttpGet("{id:int}", Name = "GetTaskById")]
+    [SwaggerOperation(Summary = "Получить задачу по ID", Description = "Возвращает задачу по её ID.")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<TaskItem>> GetTask(int id)
+    public async Task<ActionResult<TaskDto>> GetTaskById(int id)
     {
         var task = await _taskService.GetTaskByIdAsync(id);
         if (task == null)
@@ -38,88 +43,135 @@ public class TasksController : ControllerBase
             return NotFound();
         }
 
-        return Ok(task);
+        var taskDto = new TaskDto
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            Completed = task.Completed
+        };
+
+        return Ok(taskDto);
     }
 
     [HttpPost(Name = "CreateTask")]
-    [SwaggerOperation(Summary = "Создать задачу", Description = "Создает новую задачу и возвращает ее.")]
+    [SwaggerOperation(Summary = "Создать задачу", Description = "Создаёт новую задачу.")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<TaskItem>> CreateTask([FromBody] TaskItem task)
+    public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto createTaskDto)
     {
-        if (task == null)
+        if (!ModelState.IsValid)
         {
-            return BadRequest();
+            return BadRequest(ModelState);
         }
 
-        await _taskService.AddTaskAsync(task);
-        return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
+        var taskItem = new TaskItem
+        {
+            Title = createTaskDto.Title,
+            Description = createTaskDto.Description,
+            Completed = createTaskDto.Completed ?? false
+        };
+
+        await _taskService.AddTaskAsync(taskItem);
+
+        var taskDto = new TaskDto
+        {
+            Id = taskItem.Id,
+            Title = taskItem.Title,
+            Description = taskItem.Description,
+            Completed = taskItem.Completed
+        };
+
+        return CreatedAtRoute("GetTaskById", new { id = taskItem.Id }, taskDto);
     }
 
-    [HttpPut("{id}", Name = "UpdateTask")]
-    [SwaggerOperation(Summary = "Обновить задачу", Description = "Обновляет существующую задачу по указанному Id.")]
+    [HttpPut("{id:int}", Name = "UpdateTask")]
+    [SwaggerOperation(Summary = "Обновить задачу", Description = "Обновляет существующую задачу.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> UpdateTask(int id, [FromBody] TaskItem updatedTask)
+    public async Task<IActionResult> UpdateTask(int id, [FromBody] UpdateTaskDto updateTaskDto)
     {
-        if (id != updatedTask.Id || updatedTask == null)
+        if (id != updateTaskDto.Id || !ModelState.IsValid)
         {
             return BadRequest();
         }
 
-        await _taskService.UpdateTaskAsync(updatedTask);
+        var task = await _taskService.GetTaskByIdAsync(id);
+        if (task == null)
+        {
+            return NotFound();
+        }
+
+        task.Title = updateTaskDto.Title;
+        task.Description = updateTaskDto.Description;
+        if (updateTaskDto.Completed.HasValue && task.Completed != updateTaskDto.Completed.Value)
+        {
+            if (updateTaskDto.Completed.Value)
+            {
+                await _taskService.MarkTaskCompleteAsync(id);
+            }
+            else
+            {
+                await _taskService.MarkTaskIncompleteAsync(id);
+            }
+        }
+        else
+        {
+            await _taskService.UpdateTaskAsync(task);
+        }
+
         return NoContent();
     }
 
-    [HttpDelete("{id}", Name = "DeleteTask")]
-    [SwaggerOperation(Summary = "Удалить задачу", Description = "Удаляет задачу по указанному Id.")]
+    [HttpDelete("{id:int}", Name = "DeleteTask")]
+    [SwaggerOperation(Summary = "Удалить задачу", Description = "Удаляет существующую задачу.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteTask(int id)
     {
+        var task = await _taskService.GetTaskByIdAsync(id);
+        if (task == null)
+        {
+            return NotFound();
+        }
+
         await _taskService.DeleteTaskAsync(id);
         return NoContent();
     }
 
-    [HttpPatch("{id}/complete", Name = "MarkTaskComplete")]
-    [SwaggerOperation(Summary = "Отметить задачу как выполненную", Description = "Отмечает задачу как выполненную по указанному Id.")]
+    [HttpPatch("{id:int}/complete", Name = "MarkTaskComplete")]
+    [SwaggerOperation(Summary = "Завершить задачу", Description = "Устанавливает статус задачи как завершённый.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> MarkTaskComplete(int id)
     {
-        await _taskService.MarkTaskCompleteAsync(id);
-        return NoContent();
+        try
+        {
+            await _taskService.MarkTaskCompleteAsync(id);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 
-    [HttpPatch("{id}/incomplete", Name = "MarkTaskIncomplete")]
-    [SwaggerOperation(Summary = "Отметить задачу как невыполненную", Description = "Отмечает задачу как невыполненную по указанному Id.")]
+
+    [HttpPatch("{id:int}/incomplete", Name = "MarkTaskIncomplete")]
+    [SwaggerOperation(Summary = "Отменить завершение задачи", Description = "Устанавливает статус задачи как незавершённый.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> MarkTaskIncomplete(int id)
     {
-        await _taskService.MarkTaskIncompleteAsync(id);
-        return NoContent();
-    }
-
-    [HttpPost("import", Name = "ImportTasks")]
-    [SwaggerOperation(Summary = "Импортировать список задач", Description = "Импортирует список задач из предоставленного массива.")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> ImportTasks([FromBody] List<TaskItem> tasks)
-    {
-        if (tasks == null || !tasks.Any())
+        try
         {
-            return BadRequest();
+            await _taskService.MarkTaskIncompleteAsync(id);
+            return NoContent();
         }
-
-        await _taskService.AddTasksAsync(tasks);
-        return Ok();
+        catch (Exception ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 }
