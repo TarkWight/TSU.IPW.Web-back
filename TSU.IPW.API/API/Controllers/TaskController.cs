@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using TSU.IPW.API.Data.Repositories;
 using TSU.IPW.API.Domain.DTOs;
 using TSU.IPW.API.Domain.Entities;
 
@@ -8,10 +9,11 @@ using TSU.IPW.API.Domain.Entities;
 public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
-
-    public TasksController(ITaskService taskService)
+    private readonly ITagRepository _tagRepository;
+    public TasksController(ITaskService taskService, ITagRepository tagRepository)
     {
         _taskService = taskService;
+        _tagRepository = tagRepository;
     }
 
     [HttpGet(Name = "GetAllTasks")]
@@ -174,4 +176,86 @@ public class TasksController : ControllerBase
             return NotFound(ex.Message);
         }
     }
+
+    [HttpPost("{id:int}/tags", Name = "AddTagToTask")]
+    [SwaggerOperation(Summary = "Добавить тег к задаче", Description = "Добавляет тег к задаче по её ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddTagToTask(int id, [FromBody] TagDto tagDto)
+    {
+        var task = await _taskService.GetTaskByIdAsync(id);
+        if (task == null)
+        {
+            return NotFound();
+        }
+
+        await _taskService.AddTagToTaskAsync(id, tagDto);
+        return NoContent();
+    }
+
+    [HttpGet("{id:int}/tags", Name = "GetTagsForTask")]
+    [SwaggerOperation(Summary = "Получить теги задачи", Description = "Возвращает список тегов для задачи по её ID.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IEnumerable<TagDto>>> GetTagsForTask(int id)
+    {
+        var task = await _taskService.GetTaskByIdAsync(id);
+        if (task == null)
+        {
+            return NotFound();
+        }
+
+        var tags = await _taskService.GetTagsForTaskAsync(id);
+        return Ok(tags);
+    }
+
+    [HttpDelete("{id:int}/tags/{tagId:int}", Name = "RemoveTagFromTask")]
+    [SwaggerOperation(Summary = "Удалить тег из задачи", Description = "Удаляет тег из задачи по её ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveTagFromTask(int id, int tagId)
+    {
+        var task = await _taskService.GetTaskByIdAsync(id);
+        if (task == null)
+        {
+            return NotFound();
+        }
+
+        await _taskService.RemoveTagFromTaskAsync(id, tagId);
+        return NoContent();
+    }
+
+    [HttpPost("/tags")]
+    [SwaggerOperation(Summary = "Создать новый тег", Description = "Создаёт новый тег для задач.")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateTag([FromBody] CreateTagDto createTagDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        await _taskService.AddTagAsync(createTagDto);
+
+        return StatusCode(StatusCodes.Status201Created);
+    }
+
+    [HttpGet("/allTags")]
+    [SwaggerOperation(Summary = "Получить все теги", Description = "Возвращает список всех тегов из базы данных.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<Tag>>> GetAllTags()
+    {
+        var tags = await _tagRepository.GetAllTagsAsync();
+
+        if (tags == null || tags.Count == 0)
+        {
+            return NotFound();
+        }
+
+        return Ok(tags); 
+    }
+
 }

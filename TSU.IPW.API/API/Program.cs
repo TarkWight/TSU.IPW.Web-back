@@ -5,6 +5,7 @@ using TSU.IPW.API.Data.Repositories;
 var builder = WebApplication.CreateBuilder(args);
 
 // Регистрация сервисов
+builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 

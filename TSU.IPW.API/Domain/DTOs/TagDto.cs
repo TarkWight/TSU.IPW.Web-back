@@ -1,0 +1,9 @@
+﻿namespace TSU.IPW.API.Domain.DTOs
+{
+    public class TagDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+
+}

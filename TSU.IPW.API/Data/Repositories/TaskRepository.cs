@@ -10,9 +10,9 @@ namespace TSU.IPW.API.Data.Repositories
         Task AddTaskAsync(TaskItem taskItem);
         Task UpdateTaskAsync(TaskItem taskItem);
         Task DeleteTaskAsync(int id);
-
-        Task SaveTasksAsync(List<TaskItem> tasks);
-        Task<List<TaskItem>> LoadTasksAsync();
+        Task AddTagToTaskAsync(int taskId, int tagId);
+        Task<IEnumerable<Tag>> GetTagsForTaskAsync(int taskId);
+        Task RemoveTagFromTaskAsync(int taskId, int tagId);
     }
 
     public class TaskRepository : ITaskRepository
@@ -56,16 +56,78 @@ namespace TSU.IPW.API.Data.Repositories
             }
         }
 
-        public async Task SaveTasksAsync(List<TaskItem> tasks)
+        public async Task AddTagToTaskAsync(int taskId, int tagId)
         {
-            _context.TaskItems.AddRange(tasks);
-            await _context.SaveChangesAsync();
+            // Найти задачу по ID
+            var task = await _context.TaskItems.Include(t => t.TaskTags).FirstOrDefaultAsync(t => t.Id == taskId);
+            if (task == null)
+            {
+                throw new Exception("Task not found");
+            }
+
+            // Найти тег по ID
+            var tag = await _context.Tags.FindAsync(tagId);
+            if (tag == null)
+            {
+                throw new Exception("Tag not found");
+            }
+
+            // Проверить, существует ли уже связь между задачей и тегом
+            if (!task.TaskTags.Any(tt => tt.TagId == tagId))
+            {
+                // Создать новую связь между задачей и тегом
+                var taskTag = new TaskTag
+                {
+                    TaskId = taskId,
+                    TagId = tagId
+                };
+
+                task.TaskTags.Add(taskTag);
+                await _context.SaveChangesAsync();
+            }
         }
 
-        public async Task<List<TaskItem>> LoadTasksAsync()
+        public async Task<IEnumerable<Tag>> GetTagsForTaskAsync(int taskId)
         {
-            return await _context.TaskItems.ToListAsync();
+            // Найти задачу по ID
+            var task = await _context.TaskItems
+                .Include(t => t.TaskTags)
+                .ThenInclude(tt => tt.Tag)
+                .FirstOrDefaultAsync(t => t.Id == taskId);
+
+            if (task == null)
+            {
+                throw new Exception("Task not found");
+            }
+
+            // Получить список тегов для задачи
+            return task.TaskTags.Select(tt => tt.Tag).ToList();
         }
+
+        public async Task RemoveTagFromTaskAsync(int taskId, int tagId)
+        {
+            // Найти задачу по ID
+            var task = await _context.TaskItems
+                .Include(t => t.TaskTags)
+                .FirstOrDefaultAsync(t => t.Id == taskId);
+
+            if (task == null)
+            {
+                throw new Exception("Task not found");
+            }
+
+            // Найти связь между задачей и тегом
+            var taskTag = task.TaskTags.FirstOrDefault(tt => tt.TagId == tagId);
+            if (taskTag != null)
+            {
+                task.TaskTags.Remove(taskTag);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                throw new Exception("Tag not found for this task");
+            }
+        }
+
     }
-
 }
